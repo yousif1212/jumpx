@@ -3,7 +3,17 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Epic Runner Game</title>
+    <title>JUMPX</title>
+    
+    <!-- كود إحصائيات جوجل (Google Tag) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-V63TW1C2Y3"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-V63TW1C2Y3');
+    </script>
+
     <style>
         * {
             margin: 0;
@@ -22,6 +32,17 @@
             align-items: center;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             padding: 16px;
+        }
+
+        /* حاوية بانر الجانب الأيسر (160x600) */
+        .left-banner {
+            position: fixed;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 160px;
+            height: 600px;
+            z-index: 1000;
         }
 
         .game-wrapper {
@@ -94,9 +115,33 @@
         .share-btn:active {
             transform: scale(0.95);
         }
+
+        /* إخفاء البانر في الشاشات الصغيرة جداً لعدم تغطية اللعبة */
+        @media (max-width: 1150px) {
+            .left-banner {
+                display: none;
+            }
+        }
     </style>
 </head>
 <body>
+
+    <!-- كود إعلان السوشيال بار -->
+    <script src="https://pl30537267.effectivecpmnetwork.com/2c/d3/c2/2cd3c247db97b4fd81c8127d0c2b5a40.js"></script>
+
+    <!-- بانر الجانب الأيسر (160x600) -->
+    <div class="left-banner">
+        <script>
+          atOptions = {
+            'key' : 'cf938591950291854fc29cce721f5d03',
+            'format' : 'iframe',
+            'height' : 600,
+            'width' : 160,
+            'params' : {}
+          };
+        </script>
+        <script src="https://www.highperformanceformat.com/cf938591950291854fc29cce721f5d03/invoke.js"></script>
+    </div>
 
     <div class="game-wrapper">
         <canvas id="gameCanvas" width="800" height="450"></canvas>
@@ -179,12 +224,12 @@
             const GRAVITY = 0.55;
             const JUMP_FORCE = -11;
             const PLAYER_X = 100;
-            const PLAYER_W = 55;  // تكبير حجم الشخصية
-            const PLAYER_H = 75;  // تكبير حجم الشخصية
+            const PLAYER_W = 55;
+            const PLAYER_H = 75;
 
             let state = 'MENU';
             let score = 0;
-            let highScore = parseInt(localStorage.getItem('epicRunnerHigh')) || 0;
+            let highScore = parseInt(localStorage.getItem('jumpxRunnerHigh')) || 0;
             let level = 1;
             let speed = 4.0;
             let baseSpeed = 4.0;
@@ -202,7 +247,6 @@
             };
 
             let obstacles = [];
-            let particles = [];
             let shakeDuration = 0;
             let shakeIntensity = 0;
 
@@ -217,7 +261,6 @@
                 player.vy = 0;
                 player.grounded = true;
                 obstacles = [];
-                particles = [];
                 score = 0;
                 level = 1;
                 speed = baseSpeed;
@@ -257,7 +300,6 @@
                 return r1.x < r2.x + r2.w && r1.x + r1.w > r2.x && r1.y < r2.y + r2.h && r1.y + r1.h > r2.y;
             }
 
-            // --- DYNAMIC BACKGROUND CHANGING WITH LEVELS ---
             function drawBackground() {
                 let topColor = '#1a1a3a', midColor = '#b25a3a', bottomColor = '#e8b86a';
                 if (level === 2) { topColor = '#2b1a3a'; midColor = '#5a3a78'; bottomColor = '#d86aa8'; }
@@ -270,29 +312,24 @@
                 ctx.fillStyle = grad;
                 ctx.fillRect(0, 0, W, GROUND_Y);
 
-                // Moving ground
                 ctx.fillStyle = '#4a3219';
                 ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
                 ctx.fillStyle = '#6a4a28';
                 ctx.fillRect(0, GROUND_Y, W, 8);
             }
 
-            // --- CLEARER & LARGER CHARACTER DRAWING ---
             function drawPlayer(x, y, w, h) {
                 const cx = x + w / 2;
                 const baseY = y + h;
 
-                // Shadow
                 ctx.fillStyle = 'rgba(0,0,0,0.3)';
                 ctx.beginPath();
                 ctx.ellipse(cx, baseY + 2, w * 0.4, 6, 0, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Suit / Body (Larger and prominent)
                 ctx.fillStyle = '#1b2a4a';
                 ctx.fillRect(x + 8, y + 26, w - 16, h - 32);
 
-                // Tie
                 ctx.fillStyle = '#cc2233';
                 ctx.beginPath();
                 ctx.moveTo(cx - 3, y + 30);
@@ -300,19 +337,16 @@
                 ctx.lineTo(cx + 3, y + 30);
                 ctx.fill();
 
-                // Head
                 ctx.fillStyle = '#f5d0b0';
                 ctx.beginPath();
                 ctx.arc(cx, y + 16, 16, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Distinctive Hair
                 ctx.fillStyle = '#e8c840';
                 ctx.beginPath();
                 ctx.ellipse(cx, y + 6, 15, 9, 0, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Face details
                 ctx.fillStyle = '#222';
                 ctx.fillRect(cx - 6, y + 13, 3, 3);
                 ctx.fillRect(cx + 3, y + 13, 3, 3);
@@ -333,7 +367,7 @@
                     ctx.textBaseline = 'middle';
                     ctx.font = 'bold 36px sans-serif';
                     ctx.fillStyle = '#ffd866';
-                    ctx.fillText('EPIC RUNNER ADVENTURE', W / 2, H / 2 - 30);
+                    ctx.fillText('JUMPX', W / 2, H / 2 - 30);
                     ctx.font = '20px sans-serif';
                     ctx.fillStyle = '#ffffff';
                     ctx.fillText('Click or Press SPACE to Start', W / 2, H / 2 + 25);
@@ -386,7 +420,7 @@
                         shakeIntensity = 10;
                         if (score > highScore) {
                             highScore = score;
-                            localStorage.setItem('epicRunnerHigh', String(highScore));
+                            localStorage.setItem('jumpxRunnerHigh', String(highScore));
                             highSpan.textContent = highScore;
                         }
                         return;
@@ -403,7 +437,6 @@
                         playSound('score');
                         updateUI();
 
-                        // Level up check
                         const newLevel = Math.floor(score / 100) + 1;
                         if (newLevel > level) {
                             level = newLevel;
@@ -445,13 +478,12 @@
                 requestAnimationFrame(gameLoop);
             }
 
-            // --- SHARE BUTTON FUNCTIONALITY ---
             shareBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const shareText = `I scored ${score} points in Epic Runner! Can you beat my score?`;
+                const shareText = `I scored ${score} points in JUMPX! Can you beat my score?`;
                 if (navigator.share) {
                     navigator.share({
-                        title: 'Epic Runner Game',
+                        title: 'JUMPX Game',
                         text: shareText,
                         url: window.location.href
                     }).catch(() => {});
@@ -461,7 +493,6 @@
                 }
             });
 
-            // Controls
             window.addEventListener('keydown', (e) => {
                 if (e.code === 'Space' || e.code === 'ArrowUp') {
                     e.preventDefault();
