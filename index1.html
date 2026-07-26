@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Epic Runner Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: linear-gradient(145deg, #0b0e1a 0%, #1a1f33 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 16px;
+        }
+
+        .game-wrapper {
+            background: linear-gradient(170deg, #1e2647, #2a1f3d);
+            border-radius: 30px;
+            padding: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 0 2px rgba(255, 215, 0, 0.15);
+            max-width: 850px;
+            width: 100%;
+            position: relative;
+        }
+
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            aspect-ratio: 800 / 450;
+            background: #1a1f2e;
+            border-radius: 20px;
+            box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.6);
+            cursor: pointer;
+            touch-action: none;
+        }
+
+        .game-ui {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 14px;
+            padding: 0 8px;
+            color: #f0e6d3;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .left, .right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 600;
+        }
+
+        .badge {
+            background: rgba(255, 215, 0, 0.12);
+            padding: 6px 14px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 215, 0, 0.2);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.9rem;
+        }
+
+        .score-value { color: #ffd866; font-size: 1.2rem; }
+        .high-value { color: #7fc9ff; font-size: 1.1rem; }
+        .level-value { color: #ff8a8a; font-size: 1.1rem; }
+
+        .share-btn {
+            background: linear-gradient(135deg, #ffbb33, #ff8800);
+            color: #1a1a1a;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(255, 136, 0, 0.4);
+            transition: transform 0.1s ease;
+        }
+
+        .share-btn:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-wrapper">
+        <canvas id="gameCanvas" width="800" height="450"></canvas>
+        <div class="game-ui">
+            <div class="left">
+                <span class="badge">🏆 SCORE: <span class="score-value" id="scoreDisplay">0</span></span>
+                <span class="badge">⭐ HIGH: <span class="high-value" id="highDisplay">0</span></span>
+            </div>
+            <div class="right">
+                <span class="badge">📈 LEVEL: <span class="level-value" id="levelDisplay">1</span></span>
+                <button class="share-btn" id="shareBtn">🔗 Share Game</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            const W = 800, H = 450;
+
+            const scoreSpan = document.getElementById('scoreDisplay');
+            const highSpan = document.getElementById('highDisplay');
+            const levelSpan = document.getElementById('levelDisplay');
+            const shareBtn = document.getElementById('shareBtn');
+
+            // --- AUDIO SYNTHESIZER (Web Audio API for Game SFX) ---
+            let audioCtx = null;
+            function initAudio() {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            function playSound(type) {
+                try {
+                    initAudio();
+                    if (!audioCtx) return;
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+
+                    const now = audioCtx.currentTime;
+
+                    if (type === 'jump') {
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(150, now);
+                        osc.frequency.exponentialRampToValueAtTime(400, now + 0.15);
+                        gain.gain.setValueAtTime(0.15, now);
+                        gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+                        osc.start(now);
+                        osc.stop(now + 0.15);
+                    } else if (type === 'score') {
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(587.33, now); // D5
+                        osc.frequency.setValueAtTime(880, now + 0.08); // A5
+                        gain.gain.setValueAtTime(0.1, now);
+                        gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+                        osc.start(now);
+                        osc.stop(now + 0.2);
+                    } else if (type === 'gameover') {
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(200, now);
+                        osc.frequency.linearRampToValueAtTime(60, now + 0.4);
+                        gain.gain.setValueAtTime(0.2, now);
+                        gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+                        osc.start(now);
+                        osc.stop(now + 0.4);
+                    }
+                } catch (e) {
+                    // Audio context error fallback
+                }
+            }
+
+            // --- GAME CONSTANTS ---
+            const GROUND_Y = 370;
+            const GRAVITY = 0.55;
+            const JUMP_FORCE = -11;
+            const PLAYER_X = 100;
+            const PLAYER_W = 55;  // تكبير حجم الشخصية
+            const PLAYER_H = 75;  // تكبير حجم الشخصية
+
+            let state = 'MENU';
+            let score = 0;
+            let highScore = parseInt(localStorage.getItem('epicRunnerHigh')) || 0;
+            let level = 1;
+            let speed = 4.0;
+            let baseSpeed = 4.0;
+            let obstacleTimer = 0;
+            let obstacleInterval = 90;
+            let frameCount = 0;
+
+            const player = {
+                x: PLAYER_X,
+                y: GROUND_Y - PLAYER_H,
+                w: PLAYER_W,
+                h: PLAYER_H,
+                vy: 0,
+                grounded: true
+            };
+
+            let obstacles = [];
+            let particles = [];
+            let shakeDuration = 0;
+            let shakeIntensity = 0;
+
+            function updateUI() {
+                scoreSpan.textContent = score;
+                levelSpan.textContent = level;
+                highSpan.textContent = highScore;
+            }
+
+            function resetGame() {
+                player.y = GROUND_Y - PLAYER_H;
+                player.vy = 0;
+                player.grounded = true;
+                obstacles = [];
+                particles = [];
+                score = 0;
+                level = 1;
+                speed = baseSpeed;
+                obstacleTimer = 0;
+                frameCount = 0;
+                updateUI();
+            }
+
+            function spawnObstacle() {
+                const types = ['box', 'barrier', 'spike'];
+                const type = types[Math.floor(Math.random() * types.length)];
+                obstacles.push({
+                    x: W + 20,
+                    y: GROUND_Y - 45,
+                    w: 40,
+                    h: 45,
+                    type: type,
+                    passed: false
+                });
+            }
+
+            function doJump() {
+                initAudio();
+                if (state === 'MENU' || state === 'GAMEOVER') {
+                    state = 'PLAYING';
+                    resetGame();
+                    return;
+                }
+                if (state === 'PLAYING' && player.grounded) {
+                    player.vy = JUMP_FORCE;
+                    player.grounded = false;
+                    playSound('jump');
+                }
+            }
+
+            function rectCollide(r1, r2) {
+                return r1.x < r2.x + r2.w && r1.x + r1.w > r2.x && r1.y < r2.y + r2.h && r1.y + r1.h > r2.y;
+            }
+
+            // --- DYNAMIC BACKGROUND CHANGING WITH LEVELS ---
+            function drawBackground() {
+                let topColor = '#1a1a3a', midColor = '#b25a3a', bottomColor = '#e8b86a';
+                if (level === 2) { topColor = '#2b1a3a'; midColor = '#5a3a78'; bottomColor = '#d86aa8'; }
+                else if (level >= 3) { topColor = '#0a1a2a'; midColor = '#1a4a6a'; bottomColor = '#4aa8d8'; }
+
+                const grad = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+                grad.addColorStop(0, topColor);
+                grad.addColorStop(0.5, midColor);
+                grad.addColorStop(1, bottomColor);
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, W, GROUND_Y);
+
+                // Moving ground
+                ctx.fillStyle = '#4a3219';
+                ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+                ctx.fillStyle = '#6a4a28';
+                ctx.fillRect(0, GROUND_Y, W, 8);
+            }
+
+            // --- CLEARER & LARGER CHARACTER DRAWING ---
+            function drawPlayer(x, y, w, h) {
+                const cx = x + w / 2;
+                const baseY = y + h;
+
+                // Shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.beginPath();
+                ctx.ellipse(cx, baseY + 2, w * 0.4, 6, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Suit / Body (Larger and prominent)
+                ctx.fillStyle = '#1b2a4a';
+                ctx.fillRect(x + 8, y + 26, w - 16, h - 32);
+
+                // Tie
+                ctx.fillStyle = '#cc2233';
+                ctx.beginPath();
+                ctx.moveTo(cx - 3, y + 30);
+                ctx.lineTo(cx, y + 50);
+                ctx.lineTo(cx + 3, y + 30);
+                ctx.fill();
+
+                // Head
+                ctx.fillStyle = '#f5d0b0';
+                ctx.beginPath();
+                ctx.arc(cx, y + 16, 16, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Distinctive Hair
+                ctx.fillStyle = '#e8c840';
+                ctx.beginPath();
+                ctx.ellipse(cx, y + 6, 15, 9, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Face details
+                ctx.fillStyle = '#222';
+                ctx.fillRect(cx - 6, y + 13, 3, 3);
+                ctx.fillRect(cx + 3, y + 13, 3, 3);
+            }
+
+            function drawObstacle(o) {
+                ctx.fillStyle = o.type === 'spike' ? '#aa2222' : '#8a6a4a';
+                ctx.fillRect(o.x, o.y, o.w, o.h);
+                ctx.strokeStyle = '#222';
+                ctx.strokeRect(o.x, o.y, o.w, o.h);
+            }
+
+            function drawOverlay() {
+                if (state === 'MENU') {
+                    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+                    ctx.fillRect(0, 0, W, H);
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.font = 'bold 36px sans-serif';
+                    ctx.fillStyle = '#ffd866';
+                    ctx.fillText('EPIC RUNNER ADVENTURE', W / 2, H / 2 - 30);
+                    ctx.font = '20px sans-serif';
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillText('Click or Press SPACE to Start', W / 2, H / 2 + 25);
+                } else if (state === 'GAMEOVER') {
+                    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+                    ctx.fillRect(0, 0, W, H);
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.font = 'bold 44px sans-serif';
+                    ctx.fillStyle = '#ff6b5a';
+                    ctx.fillText('GAME OVER', W / 2, H / 2 - 40);
+                    ctx.font = '24px sans-serif';
+                    ctx.fillStyle = '#ffd866';
+                    ctx.fillText(`Final Score: ${score}`, W / 2, H / 2 + 10);
+                    ctx.font = '18px sans-serif';
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillText('Click anywhere to Restart', W / 2, H / 2 + 60);
+                }
+            }
+
+            function update() {
+                if (state !== 'PLAYING') return;
+                frameCount++;
+
+                player.vy += GRAVITY;
+                player.y += player.vy;
+
+                if (player.y >= GROUND_Y - player.h) {
+                    player.y = GROUND_Y - player.h;
+                    player.vy = 0;
+                    player.grounded = true;
+                } else {
+                    player.grounded = false;
+                }
+
+                obstacleTimer++;
+                if (obstacleTimer >= obstacleInterval) {
+                    obstacleTimer = 0;
+                    spawnObstacle();
+                }
+
+                for (let i = obstacles.length - 1; i >= 0; i--) {
+                    const o = obstacles[i];
+                    o.x -= speed;
+
+                    if (rectCollide(player, o)) {
+                        state = 'GAMEOVER';
+                        playSound('gameover');
+                        shakeDuration = 15;
+                        shakeIntensity = 10;
+                        if (score > highScore) {
+                            highScore = score;
+                            localStorage.setItem('epicRunnerHigh', String(highScore));
+                            highSpan.textContent = highScore;
+                        }
+                        return;
+                    }
+
+                    if (o.x + o.w < -20) {
+                        obstacles.splice(i, 1);
+                        continue;
+                    }
+
+                    if (!o.passed && o.x + o.w < player.x) {
+                        o.passed = true;
+                        score += 10;
+                        playSound('score');
+                        updateUI();
+
+                        // Level up check
+                        const newLevel = Math.floor(score / 100) + 1;
+                        if (newLevel > level) {
+                            level = newLevel;
+                            speed = baseSpeed + (level - 1) * 0.8;
+                            obstacleInterval = Math.max(35, 90 - (level - 1) * 10);
+                            updateUI();
+                        }
+                    }
+                }
+
+                if (shakeDuration > 0) shakeDuration--;
+                if (frameCount % 12 === 0) {
+                    score += 1;
+                    updateUI();
+                }
+            }
+
+            function render() {
+                ctx.save();
+                if (shakeDuration > 0) {
+                    const sx = (Math.random() - 0.5) * shakeIntensity;
+                    const sy = (Math.random() - 0.5) * shakeIntensity;
+                    ctx.translate(sx, sy);
+                }
+
+                ctx.clearRect(0, 0, W, H);
+                drawBackground();
+
+                for (const o of obstacles) drawObstacle(o);
+                drawPlayer(player.x, player.y, player.w, player.h);
+                drawOverlay();
+
+                ctx.restore();
+            }
+
+            function gameLoop() {
+                update();
+                render();
+                requestAnimationFrame(gameLoop);
+            }
+
+            // --- SHARE BUTTON FUNCTIONALITY ---
+            shareBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const shareText = `I scored ${score} points in Epic Runner! Can you beat my score?`;
+                if (navigator.share) {
+                    navigator.share({
+                        title: 'Epic Runner Game',
+                        text: shareText,
+                        url: window.location.href
+                    }).catch(() => {});
+                } else {
+                    navigator.clipboard.writeText(shareText + ' ' + window.location.href);
+                    alert('Score and link copied to clipboard!');
+                }
+            });
+
+            // Controls
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'Space' || e.code === 'ArrowUp') {
+                    e.preventDefault();
+                    doJump();
+                }
+            });
+
+            canvas.addEventListener('click', doJump);
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                doJump();
+            }, { passive: false });
+
+            updateUI();
+            gameLoop();
+        })();
+    </script>
+</body>
+</html>
